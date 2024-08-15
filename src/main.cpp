@@ -40,7 +40,7 @@
 // Camera I2C Address
 #define OV7670_I2C_ADDRESS 0x42 // OV7670 I2C address
 
-static struct pt ptPingPong, ptHandleESPComs, ptCaptureAndSendImage, ptUpdateLightLevel, ptUpdateBatteryLevels;
+static struct pt ptTestServos, ptPingPong, ptHandleESPComs, ptCaptureAndSendImage, ptUpdateLightLevel, ptUpdateBatteryLevels;
 
 // Servos
 Servo tiltServo;
@@ -52,6 +52,8 @@ bool espConnected = false;
 bool setupDone = false;
 // ESP01 will send a message "READY" when it's ready to receive commands
 bool espReady = false;
+// Flag to indicate if servos have been tested
+bool servosTested = false;
 
 // Variables
 static int tiltPosition = 90;
@@ -171,8 +173,9 @@ void initCamera()
 // Function to update battery levels with a timeout for warnings
 PT_THREAD(updateBatteryLevels(struct pt *pt))
 {
-  static unsigned long startTime = millis();
+  static unsigned long startTime;
   PT_BEGIN(pt);
+  startTime = millis();
   Serial.println("-> BATTERY");
   startTime = millis();
 
@@ -193,9 +196,9 @@ PT_THREAD(updateBatteryLevels(struct pt *pt))
         Serial.println("Battery low, consider recharging or shutting down.");
       }
     }
-    Serial.println("Battery thread going to sleep");
-    PT_YIELD_UNTIL(pt, millis() - startTime >= batteryNotifWait);
-    Serial.println("Battery thread woke up!");
+    // Serial.println("Battery thread going to sleep");
+    PT_WAIT_UNTIL(pt, millis() - startTime >= batteryNotifWait);
+    // Serial.println("Battery thread woke up!");
     startTime = millis();
   }
   PT_END(pt);
@@ -204,8 +207,8 @@ PT_THREAD(updateBatteryLevels(struct pt *pt))
 PT_THREAD(updateLightLevel(struct pt *pt))
 {
   static unsigned long startTime;
-  Serial.println("-> LIGHT");
   PT_BEGIN(pt);
+  Serial.println("-> LIGHT");
   startTime = millis();
   while (1)
   {
@@ -310,6 +313,7 @@ PT_THREAD(pingPong(struct pt *pt))
 {
   static unsigned long startTime;
   PT_BEGIN(pt);
+  startTime = millis();
   Serial.println("-> waitForESP");
   while (1)
   {
@@ -334,6 +338,46 @@ PT_THREAD(pingPong(struct pt *pt))
   PT_END(pt);
 }
 
+PT_THREAD(testServos(struct pt *pt))
+{
+  static unsigned long startTime;
+  Serial.println("-> testServos - first");
+  PT_BEGIN(pt);
+  Serial.println("-> testServos");
+  Serial.println("tiltServo.write(0);");
+  tiltServo.write(0);
+  startTime = millis();
+  PT_WAIT_UNTIL(pt, millis() - startTime >= 100);
+  startTime = millis();
+  Serial.println("tiltServo.write(180);");
+  tiltServo.write(180);
+  startTime = millis();
+  PT_WAIT_UNTIL(pt, millis() - startTime >= 100);
+  startTime = millis();
+  Serial.println("tiltServo.write(90);");
+  tiltServo.write(90);
+  startTime = millis();
+  PT_WAIT_UNTIL(pt, millis() - startTime >= 100);
+  startTime = millis();
+  Serial.println("panServo.write(0);");
+  panServo.write(0);
+  startTime = millis();
+  PT_WAIT_UNTIL(pt, millis() - startTime >= 100);
+  startTime = millis();
+  Serial.println("panServo.write(180);");
+  panServo.write(180);
+  startTime = millis();
+  PT_WAIT_UNTIL(pt, millis() - startTime >= 100);
+  startTime = millis();
+  Serial.println("panServo.write(90);");
+  panServo.write(90);
+  servosTested = true;
+  PT_EXIT(pt);
+
+  Serial.println("<- testServos");
+  PT_END(pt);
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -353,6 +397,7 @@ void setup()
 
   initCamera(); // Initialize Camera
 
+  PT_INIT(&ptTestServos);
   PT_INIT(&ptPingPong);
   PT_INIT(&ptHandleESPComs);
   PT_INIT(&ptCaptureAndSendImage);
@@ -364,6 +409,12 @@ void setup()
 
 void loop()
 {
+  if (!servosTested)
+  {
+    Serial.println("Testing servos... Soon...");
+    delay(200);
+    PT_SCHEDULE(testServos(&ptTestServos));
+  }
   if (!espConnected)
   {
     PT_SCHEDULE(pingPong(&ptPingPong));
@@ -373,7 +424,7 @@ void loop()
     PT_SCHEDULE(handleESPComs(&ptHandleESPComs));
     if (espReady)
     {
-      PT_SCHEDULE(captureAndSendImage(&ptCaptureAndSendImage));
+      // PT_SCHEDULE(captureAndSendImage(&ptCaptureAndSendImage));
       PT_SCHEDULE(updateLightLevel(&ptUpdateLightLevel));
       PT_SCHEDULE(updateBatteryLevels(&ptUpdateBatteryLevels));
     }
