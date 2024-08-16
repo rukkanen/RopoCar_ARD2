@@ -48,12 +48,12 @@ Servo panServo;
 
 // SoftwareSerial for ESP-01 communication
 SoftwareSerial espSerial(ESP_TX_PIN, ESP_RX_PIN); // Micro Arduino RX and TX pins for ESP-01
-bool espConnected = false;
-bool setupDone = false;
+bool isEspConnected = false;
+bool isSetupDone = false;
 // ESP01 will send a message "READY" when it's ready to receive commands
-bool espReady = false;
+bool isEspReady = false;
 // Flag to indicate if servos have been tested
-bool servosTested = false;
+bool isServosTested = false;
 
 // Variables
 static int initialTiltPosition = 90;
@@ -109,7 +109,7 @@ PT_THREAD(captureAndSendImage(struct pt *pt))
 {
   static unsigned long startTime;
   PT_BEGIN(pt);
-  while (espConnected)
+  while (isEspConnected)
   {
     Serial.println("-> captureAndSendImage, check for cam: " + String(isOV7670Connected()));
 
@@ -181,7 +181,7 @@ PT_THREAD(updateBatteryLevels(struct pt *pt))
 
   while (1)
   {
-    if (espConnected)
+    if (isEspConnected)
     {
       // Read battery levels from the analog pins
       motorBatteryLevel = analogRead(MOTOR_BATTERY_PIN) * (5.0 / 1023.0);
@@ -212,7 +212,7 @@ PT_THREAD(updateLightLevel(struct pt *pt))
   startTime = millis();
   while (1)
   {
-    if (espConnected)
+    if (isEspConnected)
     {
       // Check light levels and control LED
       lightLevel = analogRead(PHOTORESISTOR_PIN);
@@ -237,78 +237,96 @@ PT_THREAD(updateLightLevel(struct pt *pt))
   PT_END(pt);
 }
 
-PT_THREAD(handleESPComs(struct pt *pt))
+static int handleESPComs(struct pt *pt)
 {
-  /*
-   * This function reads everything which is sent from the ESP-01 and acts accordingly.
-   * The ESP-01 sends commands to control the servos, change modes, and send messages.
-   */
-  static unsigned long startTime;
   PT_BEGIN(pt);
-  startTime = millis();
-  Serial.println("-> handleESPComs");
+
   while (1)
   {
-    // Serial.println("-> WHILE 1 handleESPComs");
-    if (espSerial.available())
+    // Wait for a message from the ESP
+    PT_WAIT_UNTIL(pt, espSerial.available());
+
+    String message = espSerial.readStringUntil('\n');
+    message.trim();
+
+    Serial.println("ESP SAYS: " + message);
+
+    if (message == "initWlan:start")
     {
-      // Serial.println("ESP-01 message available!");
-      String message = espSerial.readStringUntil('\n');
-      message.trim();
-      if (message == "initWlan:start")
-      {
-        Serial.println(message);
-      }
-      else if (message == "initWlan:ok")
-      {
-        // Serial.println("ESP-01 has successfully connected to the WLAN.");
-      }
-      else if (message == "READY")
-      {
-        espReady = true;
-      }
-      else if (message == "tilt_up")
-      {
-        initialTiltPosition = min(initialTiltPosition + 10, 180);
-        tiltServo.write(initialTiltPosition);
-      }
-      else if (message == "tilt_down")
-      {
-        initialTiltPosition = max(initialTiltPosition - 10, 0);
-        tiltServo.write(initialTiltPosition);
-      }
-      else if (message == "pan_left")
-      {
-        initialPanPosition = min(initialPanPosition + 10, 180);
-        panServo.write(initialPanPosition);
-      }
-      else if (message == "pan_right")
-      {
-        initialPanPosition = max(initialPanPosition - 10, 0);
-        panServo.write(initialPanPosition);
-      }
-      else if (message == "mode_change:toy")
-      {
-        Serial.println("Switched to Toy/Mapping mode");
-      }
-      else if (message == "mode_change:guard")
-      {
-        Serial.println("Switched to Guard mode");
-      }
-      else if (message.startsWith("msg:"))
-      {
-        Serial.println("ESP message: " + message);
-      }
-      else
-      {
-        Serial.println("Unknown message: " + message);
-      }
+      Serial.println("Handling initWlan:start");
+      PT_EXIT(pt); // Exit the current iteration
     }
-    // Serial.println("coms thread yielding");
-    PT_YIELD_UNTIL(pt, millis() - startTime >= 1000);
-    startTime = millis();
-    // Serial.println("coms thread wokeup!");
+    else if (message == "initWlan:ok")
+    {
+      Serial.println("Handling initWlan:ok");
+      PT_EXIT(pt); // Exit the current iteration
+    }
+    else if (message == "initHttp:ok")
+    {
+      Serial.println("Handling initHttp:ok");
+      PT_EXIT(pt); // Exit the current iteration
+    }
+    else if (message == "initHttp:fail")
+    {
+      Serial.println("Handling initHttp:fail");
+      PT_EXIT(pt); // Exit the current iteration
+    }
+    else if (message == "READY")
+    {
+      Serial.println("Handling READY");
+      isEspReady = true;
+      PT_EXIT(pt); // Exit the current iteration
+    }
+    else if (message == "tilt_up")
+    {
+      Serial.println("Handling tilt_up");
+      initialTiltPosition = min(initialTiltPosition + 10, 180);
+      tiltServo.write(initialTiltPosition);
+      PT_EXIT(pt); // Exit the current iteration
+    }
+    else if (message == "tilt_down")
+    {
+      Serial.println("Handling tilt_down");
+      initialTiltPosition = max(initialTiltPosition - 10, 0);
+      tiltServo.write(initialTiltPosition);
+      PT_EXIT(pt); // Exit the current iteration
+    }
+    else if (message == "pan_left")
+    {
+      Serial.println("Handling pan_left");
+      initialPanPosition = min(initialPanPosition + 10, 180);
+      panServo.write(initialPanPosition);
+      PT_EXIT(pt); // Exit the current iteration
+    }
+    else if (message == "pan_right")
+    {
+      Serial.println("Handling pan_right");
+      initialPanPosition = max(initialPanPosition - 10, 0);
+      panServo.write(initialPanPosition);
+      PT_EXIT(pt); // Exit the current iteration
+    }
+    else if (message == "mode_change:toy")
+    {
+      Serial.println("Switched to Toy/Mapping mode");
+      PT_EXIT(pt); // Exit the current iteration
+    }
+    else if (message == "mode_change:guard")
+    {
+      Serial.println("Switched to Guard mode");
+      PT_EXIT(pt); // Exit the current iteration
+    }
+    else if (message.startsWith("msg:"))
+    {
+      Serial.println("ESP message: " + message);
+      PT_EXIT(pt); // Exit the current iteration
+    }
+    else
+    {
+      Serial.println("Unknown message: " + message);
+      PT_EXIT(pt); // Exit the current iteration
+    }
   }
+
   PT_END(pt);
 }
 
@@ -317,7 +335,6 @@ PT_THREAD(pingPong(struct pt *pt))
   static unsigned long startTime;
   PT_BEGIN(pt);
   startTime = millis();
-  Serial.println("-> waitForESP");
   while (1)
   {
     Serial.println("Waiting for ESP-01 connection...");
@@ -330,11 +347,12 @@ PT_THREAD(pingPong(struct pt *pt))
       if (message == "pong")
       {
         Serial.println("ESP-01 is OK.");
-        espConnected = true;
+        isEspConnected = true;
         PT_EXIT(pt);
       }
     }
-    PT_WAIT_UNTIL(pt, millis() - startTime >= 1000);
+    // try to ping ESP-01 every 3 seconds
+    PT_WAIT_UNTIL(pt, millis() - startTime >= 3000);
     startTime = millis();
   }
 
@@ -382,6 +400,7 @@ PT_THREAD(testServos(struct pt *pt))
   Serial.println("panServo.write(90)");
   panServo.write(90);
 
+  isServosTested = true;
   Serial.println("<- DONE: setup servos ");
   PT_END(pt);
 }
@@ -412,19 +431,19 @@ void setup()
 void loop()
 {
 
-  if (!espConnected)
+  if (!isEspConnected)
   {
     PT_SCHEDULE(pingPong(&ptPingPong));
   }
   else
   {
     PT_SCHEDULE(handleESPComs(&ptHandleESPComs));
-    if (espReady)
+    if (isEspReady)
     {
       // PT_SCHEDULE(captureAndSendImage(&ptCaptureAndSendImage));
       PT_SCHEDULE(updateLightLevel(&ptUpdateLightLevel));
       PT_SCHEDULE(updateBatteryLevels(&ptUpdateBatteryLevels));
-      if (!servosTested)
+      if (!isServosTested)
       {
         // Test the servos, this blocks
         PT_SCHEDULE(testServos(&ptTestServos));
