@@ -40,7 +40,7 @@
 // Camera I2C Address
 #define OV7670_I2C_ADDRESS 0x42 // OV7670 I2C address
 
-static struct pt ptTestServos, ptPingPong, ptHandleESPComs, ptCaptureAndSendImage, ptUpdateLightLevel, ptUpdateBatteryLevels;
+static struct pt ptPingPong, ptHandleESPComs, ptCaptureAndSendImage, ptUpdateLightLevel, ptUpdateBatteryLevels, ptTestServos;
 
 // Servos
 Servo tiltServo;
@@ -56,8 +56,8 @@ bool espReady = false;
 bool servosTested = false;
 
 // Variables
-static int tiltPosition = 90;
-static int panPosition = 90;
+static int initialTiltPosition = 90;
+static int initialPanPosition = 90;
 static int lightLevel = 0;
 static float motorBatteryLevel = 0.0;
 static float computeBatteryLevel = 0.0;
@@ -216,12 +216,15 @@ PT_THREAD(updateLightLevel(struct pt *pt))
     {
       // Check light levels and control LED
       lightLevel = analogRead(PHOTORESISTOR_PIN);
+      Serial.println("light level: " + String(lightLevel));
       if (lightLevel < lightLevelThreshold)
       {
+        Serial.println("Light level is low, turning on LED");
         digitalWrite(LED_PIN, HIGH);
       }
       else
       {
+        Serial.println("Light level is high, turning off LED");
         digitalWrite(LED_PIN, LOW);
       }
 
@@ -249,7 +252,7 @@ PT_THREAD(handleESPComs(struct pt *pt))
     // Serial.println("-> WHILE 1 handleESPComs");
     if (espSerial.available())
     {
-      Serial.println("ESP-01 message available!");
+      // Serial.println("ESP-01 message available!");
       String message = espSerial.readStringUntil('\n');
       message.trim();
       if (message == "initWlan:start")
@@ -266,23 +269,23 @@ PT_THREAD(handleESPComs(struct pt *pt))
       }
       else if (message == "tilt_up")
       {
-        tiltPosition = min(tiltPosition + 10, 180);
-        tiltServo.write(tiltPosition);
+        initialTiltPosition = min(initialTiltPosition + 10, 180);
+        tiltServo.write(initialTiltPosition);
       }
       else if (message == "tilt_down")
       {
-        tiltPosition = max(tiltPosition - 10, 0);
-        tiltServo.write(tiltPosition);
+        initialTiltPosition = max(initialTiltPosition - 10, 0);
+        tiltServo.write(initialTiltPosition);
       }
       else if (message == "pan_left")
       {
-        panPosition = min(panPosition + 10, 180);
-        panServo.write(panPosition);
+        initialPanPosition = min(initialPanPosition + 10, 180);
+        panServo.write(initialPanPosition);
       }
       else if (message == "pan_right")
       {
-        panPosition = max(panPosition - 10, 0);
-        panServo.write(panPosition);
+        initialPanPosition = max(initialPanPosition - 10, 0);
+        panServo.write(initialPanPosition);
       }
       else if (message == "mode_change:toy")
       {
@@ -301,10 +304,10 @@ PT_THREAD(handleESPComs(struct pt *pt))
         Serial.println("Unknown message: " + message);
       }
     }
-    Serial.println("coms thread yielding");
+    // Serial.println("coms thread yielding");
     PT_YIELD_UNTIL(pt, millis() - startTime >= 1000);
     startTime = millis();
-    Serial.println("coms thread wokeup!");
+    // Serial.println("coms thread wokeup!");
   }
   PT_END(pt);
 }
@@ -341,40 +344,45 @@ PT_THREAD(pingPong(struct pt *pt))
 PT_THREAD(testServos(struct pt *pt))
 {
   static unsigned long startTime;
-  Serial.println("-> testServos - first");
   PT_BEGIN(pt);
-  Serial.println("-> testServos");
-  Serial.println("tiltServo.write(0);");
+  Serial.println("-> Setup servos");
+  startTime = millis();
+
+  // Initialize Servos
+  tiltServo.attach(TILT_SERVO_PIN);
+  panServo.attach(PAN_SERVO_PIN);
+  tiltServo.write(initialTiltPosition);
+  panServo.write(initialPanPosition);
+
+  Serial.println("tiltServo.write(0)");
   tiltServo.write(0);
   startTime = millis();
-  PT_WAIT_UNTIL(pt, millis() - startTime >= 100);
-  startTime = millis();
-  Serial.println("tiltServo.write(180);");
+  PT_WAIT_UNTIL(pt, millis() - startTime >= 800);
+
+  Serial.println("tiltServo.write(180)");
   tiltServo.write(180);
   startTime = millis();
-  PT_WAIT_UNTIL(pt, millis() - startTime >= 100);
-  startTime = millis();
-  Serial.println("tiltServo.write(90);");
+  PT_WAIT_UNTIL(pt, millis() - startTime >= 800);
+
+  Serial.println("tiltServo.write(90)");
   tiltServo.write(90);
   startTime = millis();
-  PT_WAIT_UNTIL(pt, millis() - startTime >= 100);
-  startTime = millis();
-  Serial.println("panServo.write(0);");
+  PT_WAIT_UNTIL(pt, millis() - startTime >= 1800);
+
+  Serial.println("panServo.write(0)");
   panServo.write(0);
   startTime = millis();
-  PT_WAIT_UNTIL(pt, millis() - startTime >= 100);
-  startTime = millis();
-  Serial.println("panServo.write(180);");
+  PT_WAIT_UNTIL(pt, millis() - startTime >= 800);
+
+  Serial.println("panServo.write(180)");
   panServo.write(180);
   startTime = millis();
-  PT_WAIT_UNTIL(pt, millis() - startTime >= 100);
-  startTime = millis();
-  Serial.println("panServo.write(90);");
-  panServo.write(90);
-  servosTested = true;
-  PT_EXIT(pt);
+  PT_WAIT_UNTIL(pt, millis() - startTime >= 800);
 
-  Serial.println("<- testServos");
+  Serial.println("panServo.write(90)");
+  panServo.write(90);
+
+  Serial.println("<- DONE: setup servos ");
   PT_END(pt);
 }
 
@@ -382,12 +390,6 @@ void setup()
 {
   Serial.begin(115200);
   espSerial.begin(9600);
-
-  // Initialize Servos
-  tiltServo.attach(TILT_SERVO_PIN);
-  panServo.attach(PAN_SERVO_PIN);
-  tiltServo.write(tiltPosition);
-  panServo.write(panPosition);
 
   // Initialize LEDs and Photoresistor
   pinMode(LED_PIN, OUTPUT);
@@ -397,24 +399,19 @@ void setup()
 
   initCamera(); // Initialize Camera
 
-  PT_INIT(&ptTestServos);
+  // Initialize Protothreads
   PT_INIT(&ptPingPong);
   PT_INIT(&ptHandleESPComs);
   PT_INIT(&ptCaptureAndSendImage);
   PT_INIT(&ptUpdateLightLevel);
   PT_INIT(&ptUpdateBatteryLevels);
-
+  PT_INIT(&ptTestServos);
   Serial.println("<- Setup complete");
 }
 
 void loop()
 {
-  if (!servosTested)
-  {
-    Serial.println("Testing servos... Soon...");
-    delay(200);
-    PT_SCHEDULE(testServos(&ptTestServos));
-  }
+
   if (!espConnected)
   {
     PT_SCHEDULE(pingPong(&ptPingPong));
@@ -427,6 +424,11 @@ void loop()
       // PT_SCHEDULE(captureAndSendImage(&ptCaptureAndSendImage));
       PT_SCHEDULE(updateLightLevel(&ptUpdateLightLevel));
       PT_SCHEDULE(updateBatteryLevels(&ptUpdateBatteryLevels));
+      if (!servosTested)
+      {
+        // Test the servos, this blocks
+        PT_SCHEDULE(testServos(&ptTestServos));
+      }
     }
   }
 }
