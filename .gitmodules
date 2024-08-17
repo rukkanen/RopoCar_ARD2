@@ -1,0 +1,3 @@
+[submodule "robocar_docs"]
+	path = robocar_docs
+	url = git@github.com:rukkanen/robocar_docs.git
