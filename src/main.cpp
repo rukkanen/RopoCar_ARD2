@@ -3,7 +3,7 @@
 #include <Arduino.h>
 
 #include <SoftwareSerial.h>
-#include <SerialRedirect.h>
+// #include <SerialRedirect.h>
 #include <QueueArray.h> // External library for a simple queue implementation
 #include <pt.h>
 
@@ -146,7 +146,7 @@ PT_THREAD(updateLightLevel(struct pt *pt))
   {
     if (isEspConnected)
     {
-      
+
       // Check light levels and control LED
       lightLevel = analogRead(PHOTORESISTOR_PIN);
       logMessage(INFO, "light level: " + String(lightLevel));
