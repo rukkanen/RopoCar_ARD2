@@ -3,12 +3,11 @@
 #include <Arduino.h>
 
 #include <SoftwareSerial.h>
-// #include <SerialRedirect.h>
-#include <QueueArray.h> // External library for a simple queue implementation
 #include <pt.h>
 
 #include "logger.h"
 #include "YA_OV7670_camera.h"
+#include "BatteryManager.h"
 
 // ESP-01 Pins
 #define ESP_RX_PIN 14 // ESP-01 RX connected to D14 (CIPO)
@@ -25,6 +24,10 @@
 #define COMPUTE_BATTERY_PIN A7 // Compute Battery Level connected to A7
 
 static struct pt ptPingPong, ptHandleESPComs, ptCaptureAndSendImage, ptUpdateLightLevel, ptUpdateBatteryLevels, ptTestServos;
+
+// Create an instance of BatteryManager
+BatteryManager motorBatteryManager = BatteryManager(MOTOR_BATTERY_PIN);
+BatteryManager computeBatteryManager = BatteryManager(COMPUTE_BATTERY_PIN);
 
 // Servos
 Servo tiltServo;
@@ -116,10 +119,10 @@ PT_THREAD(updateBatteryLevels(struct pt *pt))
     if (isEspConnected)
     {
       // Read battery levels from the analog pins
-      motorBatteryLevel = analogRead(MOTOR_BATTERY_PIN) * (5.0 / 1023.0);
-      computeBatteryLevel = analogRead(COMPUTE_BATTERY_PIN) * (5.0 / 1023.0);
+      // motorBatteryLevel = analogRead(MOTOR_BATTERY_PIN) * (3.0 / 1023.0);
+      // computeBatteryLevel = analogRead(COMPUTE_BATTERY_PIN) * (5.0 / 1023.0);
       // Send battery levels to ESP-01
-      espSerial.println("battery_level=" + String(motorBatteryLevel) + "," + String(computeBatteryLevel));
+      espSerial.println("battery_level=" + String(motorBatteryLevel) + "%," + String(computeBatteryLevel) + "%");
 
       // Check if the battery levels are below the threshold and if it's time to send another warning
       if ((motorBatteryLevel < lowBatteryThreshold || computeBatteryLevel < lowBatteryThreshold))
@@ -364,7 +367,7 @@ void setup()
 void loop()
 {
   // Check battery level periodically
-  checkBatteryLevel();
+  // checkBatteryLevel();
   if (!isEspConnected)
   {
     PT_SCHEDULE(pingPong(&ptPingPong));
