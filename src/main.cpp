@@ -68,16 +68,16 @@ PT_THREAD(captureAndSendImage(struct pt *pt))
   PT_BEGIN(pt);
   while (isEspConnected)
   {
-    logMessage(INFO, "-> captureAndSendImage, check for cam: " + String(isOV7670Connected()));
+    logLMessage(INFO, "-> captureAndSendImage, check for cam: " + String(isOV7670Connected()));
 
     const int imageWidth = 640;
     const int imageHeight = 480;
 
     espSerial.println("picture_start"); // Notify ESP-01 to expect image data
 
-    logMessage(INFO, "Yielding, do other stuff, then come back to capture image");
+    logLMessage(INFO, "Yielding, do other stuff, then come back to capture image");
     PT_YIELD(pt); // Yield to allow ESP-01 to prepare for image data
-    logMessage(INFO, "Yielded, here were back!!");
+    logLMessage(INFO, "Yielded, here were back!!");
 
     for (int y = 0; y < imageHeight; y++)
     {
@@ -97,10 +97,10 @@ PT_THREAD(captureAndSendImage(struct pt *pt))
       while (digitalRead(OV7670_HREF))
         ;
     }
-    logMessage(INFO, "camera thread going to sleep");
+    logLMessage(INFO, "camera thread going to sleep");
     startTime = millis();
     PT_YIELD_UNTIL(pt, millis() - startTime >= 5000);
-    logMessage(INFO, "camera thread woke up!");
+    logLMessage(INFO, "camera thread woke up!");
   }
   PT_END(pt);
 }
@@ -128,7 +128,7 @@ PT_THREAD(updateBatteryLevels(struct pt *pt))
       if ((motorBatteryLevel < lowBatteryThreshold || computeBatteryLevel < lowBatteryThreshold))
       {
         // Send the battery warning
-        logMessage(ERROR, "Battery low, consider recharging or shutting down.");
+        logLMessage(ERROR, "Battery low, consider recharging or shutting down.");
       }
     }
     // Serial.println("Battery thread going to sleep");
@@ -143,7 +143,7 @@ PT_THREAD(updateLightLevel(struct pt *pt))
 {
   static unsigned long startTime;
   PT_BEGIN(pt);
-  logMessage(INFO, "-> LIGHT");
+  logLMessage(INFO, "-> LIGHT");
   startTime = millis();
   while (1)
   {
@@ -152,23 +152,23 @@ PT_THREAD(updateLightLevel(struct pt *pt))
 
       // Check light levels and control LED
       lightLevel = analogRead(PHOTORESISTOR_PIN);
-      logMessage(INFO, "light level: " + String(lightLevel));
+      logLMessage(INFO, "light level: " + String(lightLevel));
       if (lightLevel < lightLevelThreshold)
       {
-        logMessage(INFO, "Light level is low, turning on LED");
+        logLMessage(INFO, "Light level is low, turning on LED");
         digitalWrite(LED_PIN, HIGH);
       }
       else
       {
-        logMessage(INFO, "Light level is high, turning off LED");
+        logLMessage(INFO, "Light level is high, turning off LED");
         digitalWrite(LED_PIN, LOW);
       }
 
-      logMessage(INFO, "Light thread going to sleep");
+      logLMessage(INFO, "Light thread going to sleep");
     }
     PT_YIELD_UNTIL(pt, millis() - startTime >= lightUpdateWait);
     startTime = millis();
-    logMessage(INFO, "Light thread woke up!");
+    logLMessage(INFO, "Light thread woke up!");
   }
   PT_END(pt);
 }
@@ -185,80 +185,80 @@ static int handleESPComs(struct pt *pt)
     String message = espSerial.readStringUntil('\n');
     message.trim();
 
-    logMessage(INFO, "ESP SAYS: " + message);
+    logLMessage(INFO, "ESP SAYS: " + message);
 
     if (message == "initWlan:start")
     {
-      logMessage(INFO, "Handling initWlan:start");
+      logLMessage(INFO, "Handling initWlan:start");
       PT_EXIT(pt); // Exit the current iteration
     }
     else if (message == "initWlan:ok")
     {
-      logMessage(INFO, "Handling initWlan:ok");
+      logLMessage(INFO, "Handling initWlan:ok");
       PT_EXIT(pt); // Exit the current iteration
     }
     else if (message == "initHttp:ok")
     {
-      logMessage(INFO, "Handling initHttp:ok");
+      logLMessage(INFO, "Handling initHttp:ok");
       PT_EXIT(pt); // Exit the current iteration
     }
     else if (message == "initHttp:fail")
     {
-      logMessage(INFO, "Handling initHttp:fail");
+      logLMessage(INFO, "Handling initHttp:fail");
       PT_EXIT(pt); // Exit the current iteration
     }
     else if (message == "READY")
     {
-      logMessage(INFO, "Handling READY");
+      logLMessage(INFO, "Handling READY");
       isEspReady = true;
       PT_EXIT(pt); // Exit the current iteration
     }
     else if (message == "tilt_up")
     {
-      logMessage(INFO, "Handling tilt_up");
+      logLMessage(INFO, "Handling tilt_up");
       initialTiltPosition = min(initialTiltPosition + 10, 180);
       tiltServo.write(initialTiltPosition);
       PT_EXIT(pt); // Exit the current iteration
     }
     else if (message == "tilt_down")
     {
-      logMessage(INFO, "Handling tilt_down");
+      logLMessage(INFO, "Handling tilt_down");
       initialTiltPosition = max(initialTiltPosition - 10, 0);
       tiltServo.write(initialTiltPosition);
       PT_EXIT(pt); // Exit the current iteration
     }
     else if (message == "pan_left")
     {
-      logMessage(INFO, "Handling pan_left");
+      logLMessage(INFO, "Handling pan_left");
       initialPanPosition = min(initialPanPosition + 10, 180);
       panServo.write(initialPanPosition);
       PT_EXIT(pt); // Exit the current iteration
     }
     else if (message == "pan_right")
     {
-      logMessage(INFO, "Handling pan_right");
+      logLMessage(INFO, "Handling pan_right");
       initialPanPosition = max(initialPanPosition - 10, 0);
       panServo.write(initialPanPosition);
       PT_EXIT(pt); // Exit the current iteration
     }
     else if (message == "mode_change:toy")
     {
-      logMessage(INFO, "Switched to Toy/Mapping mode");
+      logLMessage(INFO, "Switched to Toy/Mapping mode");
       PT_EXIT(pt); // Exit the current iteration
     }
     else if (message == "mode_change:guard")
     {
-      logMessage(INFO, "Switched to Guard mode");
+      logLMessage(INFO, "Switched to Guard mode");
       PT_EXIT(pt); // Exit the current iteration
     }
     else if (message.startsWith("msg:"))
     {
-      logMessage(INFO, "ESP message: " + message);
+      logLMessage(INFO, "ESP message: " + message);
       PT_EXIT(pt); // Exit the current iteration
     }
     else
     {
-      logMessage(INFO, "Unknown message: " + message);
+      logLMessage(INFO, "Unknown message: " + message);
       PT_EXIT(pt); // Exit the current iteration
     }
   }
@@ -273,7 +273,7 @@ PT_THREAD(pingPong(struct pt *pt))
   startTime = millis();
   while (1)
   {
-    logMessage(INFO, "Waiting for ESP-01 connection...");
+    logLMessage(INFO, "Waiting for ESP-01 connection...");
     espSerial.println("ping");
     espSerial.flush();
     if (espSerial.available())
@@ -282,7 +282,7 @@ PT_THREAD(pingPong(struct pt *pt))
       message.trim();
       if (message == "pong")
       {
-        logMessage(INFO, "ESP-01 is OK.");
+        logLMessage(INFO, "ESP-01 is OK.");
         isEspConnected = true;
         PT_EXIT(pt);
       }
@@ -299,7 +299,7 @@ PT_THREAD(testServos(struct pt *pt))
 {
   static unsigned long startTime;
   PT_BEGIN(pt);
-  logMessage(INFO, "-> Setup servos");
+  logLMessage(INFO, "-> Setup servos");
   startTime = millis();
 
   // Initialize Servos
@@ -308,36 +308,36 @@ PT_THREAD(testServos(struct pt *pt))
   tiltServo.write(initialTiltPosition);
   panServo.write(initialPanPosition);
 
-  logMessage(INFO, "tiltServo.write(0)");
+  logLMessage(INFO, "tiltServo.write(0)");
   tiltServo.write(0);
   startTime = millis();
   PT_WAIT_UNTIL(pt, millis() - startTime >= 800);
 
-  logMessage(INFO, "tiltServo.write(180)");
+  logLMessage(INFO, "tiltServo.write(180)");
   tiltServo.write(180);
   startTime = millis();
   PT_WAIT_UNTIL(pt, millis() - startTime >= 800);
 
-  logMessage(INFO, "tiltServo.write(90)");
+  logLMessage(INFO, "tiltServo.write(90)");
   tiltServo.write(90);
   startTime = millis();
   PT_WAIT_UNTIL(pt, millis() - startTime >= 1800);
 
-  logMessage(INFO, "panServo.write(0)");
+  logLMessage(INFO, "panServo.write(0)");
   panServo.write(0);
   startTime = millis();
   PT_WAIT_UNTIL(pt, millis() - startTime >= 800);
 
-  logMessage(INFO, "panServo.write(180)");
+  logLMessage(INFO, "panServo.write(180)");
   panServo.write(180);
   startTime = millis();
   PT_WAIT_UNTIL(pt, millis() - startTime >= 800);
 
-  logMessage(INFO, "panServo.write(90)");
+  logLMessage(INFO, "panServo.write(90)");
   panServo.write(90);
 
   isServosTested = true;
-  logMessage(INFO, "<- DONE: setup servos");
+  logLMessage(INFO, "<- DONE: setup servos");
   PT_END(pt);
 }
 
